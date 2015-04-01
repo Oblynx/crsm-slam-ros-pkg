@@ -1,0 +1,5 @@
+#gedit backups
+*~
+
+#catkin-specific
+CMakeLists.txt

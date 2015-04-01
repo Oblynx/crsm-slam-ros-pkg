@@ -48,7 +48,7 @@ namespace crsm_slam{
 	 @class CrsmSlam
 	 @brief The main slam class. Contains the main functionalities of CRSM slam.
 	 **/ 
-	class CrsmSlam{
+	class CrsmSlam111{
 
 		private:
 			ros::Subscriber _clientLaserValues;				//!< The laser subscriber 
