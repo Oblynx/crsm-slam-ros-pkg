@@ -29,6 +29,7 @@
 
 #include "tf/transform_broadcaster.h"
 #include "tf/transform_listener.h"
+#include "sensor_msgs/Imu.h"
 #include "ros/ros.h"
 
 #include <geometry_msgs/Quaternion.h>
@@ -50,19 +51,20 @@ namespace crsm_slam{
 	class CrsmSlam{
 
 		private:
-			ros::Subscriber clientLaserValues;				//!< The laser subscriber 
-			ros::Publisher _occupancyGridPublisher;			//!< The occupancy grid map publisher
-			ros::Publisher _pathPublisher;					//!< The robot trajectory publisher
+			ros::Subscriber _clientLaserValues;				//!< The laser subscriber 
+			ros::Subscriber _imuSubscriber;						//!< For receiving yaw from IMU
+			ros::Publisher _occupancyGridPublisher;		//!< The occupancy grid map publisher
+			ros::Publisher _pathPublisher;						//!< The robot trajectory publisher
 			tf::TransformBroadcaster _slamFrameBroadcaster; //!< The tf robpt pose broadcaster
-			tf::TransformListener _listener;				//!< Tf listener to aquire the transformation between the laser and the robot center
+			tf::TransformListener _listener;					//!< Tf listener to aquire the transformation between the laser and the robot center
 			
 			CrsmExpansion expansion;
 			
-			CrsmMap map;		//!< The OGM container
+			CrsmMap map;			//!< The OGM container
 			CrsmLaser laser;	//!< The laser container
 				
-			int argc;			//!< Number of input arguments
-			char **argv;		//!< The input arguments
+			int argc;					//!< Number of input arguments
+			char **argv;			//!< The input arguments
 
 			unsigned int counter;	//!< Slam iterations counter
 
@@ -70,13 +72,13 @@ namespace crsm_slam{
 			float meanDensity;		//!< The mean laser scan density for a specific iteration
 
 			CrsmTransformation bestTransformation;	//!< The best RRHC transformation for a specific iteration
-			CrsmPose robotPose;					//!< The robot pose
-			CrsmSlamParameters slamParams;			//!< The slam parameters
+			CrsmPose robotPose;											//!< The robot pose
+			CrsmSlamParameters slamParams;					//!< The slam parameters
 			
 			std::vector<CrsmPose> robotTrajectory;	//!< Container for the robot trajectory
 
 			std::set<int> scanSelections;			//!< Holds the critical rays, on which the scan matching is performed
-			std::set<int> bigChanges;				//!< Holds the irregularities of a specific scan in terms of distance	
+			std::set<int> bigChanges;					//!< Holds the irregularities of a specific scan in terms of distance	
 			
 			/**
 			@brief Reads the CRSM slam parameters from the yaml file and fills the CrsmSlamParameters structure
@@ -110,6 +112,12 @@ namespace crsm_slam{
 			@return void
 			**/
 			~CrsmSlam(){}
+
+			/**
+			@brief Subscriber to PANDORA IMU sensor messages. Updates YAW state
+			@param msg [const sensor_msgs::ImuConstPtr&] Incoming IMU sensor message
+			**/
+    	void serveImuMessage(const sensor_msgs::ImuConstPtr& msg);
 			
 			/**
 			@brief Updates map after finding the new robot pose

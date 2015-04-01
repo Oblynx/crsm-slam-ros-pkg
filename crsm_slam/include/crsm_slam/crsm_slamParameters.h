@@ -53,6 +53,7 @@ namespace crsm_slam{
 		std::string robot_trajectory_publish_topic;	//!< The trajectory publishing topic
 		std::string trajectory_publisher_frame_id;	//!< The trajectory frame ID
 		std::string laser_subscriber_topic;			//!< The laser subscriber topic
+		std::string IMU_subscriber_topic;				//!< The IMU subscriber topic
 		
 		std::string world_frame;			//!< Holds the world frame 
 		std::string base_footprint_frame;	//!< Holds the base footprint frame - (x,y,yaw)

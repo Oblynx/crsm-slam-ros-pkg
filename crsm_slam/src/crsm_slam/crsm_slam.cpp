@@ -56,7 +56,10 @@ CrsmSlam::CrsmSlam(int argc, char **argv){
 	expansion.expansions.insert(std::pair<CrsmDirection,int>(LEFT,0));
 	expansion.expansions.insert(std::pair<CrsmDirection,int>(UP,0));
 	expansion.expansions.insert(std::pair<CrsmDirection,int>(DOWN,0));
+	// TODO
 }
+
+
 
 /**
 @brief Reads the CRSM slam parameters from the yaml file and fills the CrsmSlamParameters structure
@@ -91,7 +94,16 @@ void CrsmSlam::updateParameters(void){
 		ROS_WARN("[CrsmSlam] : Parameter laser_subscriber_topic not found. Using Default");
 		slamParams.laser_subscriber_topic = "/crsm_slam/laser_scan" ;
 	}
-	
+
+	if (n.hasParam("/crsm_slam/laser_subscriber_topic")) 
+		n.getParam("/crsm_slam/laser_subscriber_topic", slamParams.laser_subscriber_topic);
+	else {
+		ROS_WARN("[CrsmSlam] : Parameter laser_subscriber_topic not found. Using Default");
+		slamParams.laser_subscriber_topic = "/crsm_slam/laser_scan" ;
+	}
+
+	n.param<std::string>("IMU_subscriber_topic", slamParams.IMU_subscriber_topic, "/sensors/imu");
+
 	if (n.hasParam("/crsm_slam/world_frame")) 
 		n.getParam("/crsm_slam/world_frame", slamParams.world_frame);
 	else {
@@ -232,6 +244,16 @@ void CrsmSlam::updateParameters(void){
 	}
 }
 
+void CrsmSlam::serveImuMessage(const sensor_msgs::ImuConstPtr& msg){
+	tf::Matrix3x3 matrix(tf::Quaternion(
+          msg->orientation.x,
+          msg->orientation.y,
+          msg->orientation.z,
+          msg->orientation.w));
+  double uselessRoll, uselessPitch;
+  matrix.getRPY(uselessRoll, uselessPitch, robotPose.theta);
+}
+
 /**
 @brief Calculates the transformation (translation & rotation) with RRHC
 @return void
@@ -251,49 +273,48 @@ void CrsmSlam::findTransformation(void){
 	trier.fitness=0;
 	trier.t.dx=0;
 	trier.t.dy=0;
-	trier.t.dth=0;
+	trier.t.dth=robotPose.theta;
 	
 	bool isDone=false;
 	bestFitness=0;
 
 	while(!isDone) {
-		temp.dx=robotPose.x+trier.t.dx;
-		temp.dy=robotPose.y+trier.t.dy;
-		temp.dth=robotPose.theta+trier.t.dth;	
-		trier.fitness=0;
-		float tempFitness=0;
-		for(set<int>::iterator j=scanSelections.begin();j != scanSelections.end();j++){
-			tempx=laser.scan.p[*j].x;
-			tempy=laser.scan.p[*j].y; 
-			sinth=sin(temp.dth);
-			costh=cos(temp.dth);
-			tttx=tempx*costh-tempy*sinth+temp.dx+map.info.originx;
-			ttty=tempx*sinth+tempy*costh+temp.dy+map.info.originy;	
+		temp.dx= robotPose.x+trier.t.dx;
+		temp.dy= robotPose.y+trier.t.dy;
+		temp.dth= robotPose.theta;
+		trier.fitness= 0;
+		float tempFitness= 0;
+		//for(set<int>::iterator j=scanSelections.begin();j != scanSelections.end();j++){
+		for(const auto& j : scanSelections){
+			tempx= laser.scan.p[*j].x;
+			tempy= laser.scan.p[*j].y; 
+			sinth= sin(temp.dth);
+			costh= cos(temp.dth);
+			tttx= tempx*costh-tempy*sinth+temp.dx+map.info.originx;
+			ttty= tempx*sinth+tempy*costh+temp.dy+map.info.originy;	
 		
 			if(checkExpansion(tttx,ttty,false)) continue;
 							
 			if(map.p[(unsigned int)tttx][(unsigned int)ttty]==127) continue;
-			tempFitness+=((255-map.p[(unsigned int)tttx][(unsigned int)ttty])*10+
+			tempFitness+= ((255-map.p[(unsigned int)tttx][(unsigned int)ttty])*10+
 						(255-map.p[(unsigned int)tttx-1][(unsigned int)ttty])+
 						(255-map.p[(unsigned int)tttx+1][(unsigned int)ttty])+
 						(255-map.p[(unsigned int)tttx][(unsigned int)ttty-1])+
 						(255-map.p[(unsigned int)tttx][(unsigned int)ttty+1]))/255.0;
 		}
-		tempFitness/=(14.0*scanSelections.size());
-		trier.fitness=tempFitness;
-		if(trier.fitness>bestFitness){
-			bestFitness=trier.fitness;
-			bestTransformation=trier.t;
-			trier.t.dx+=rand()%slamParams.disparity/4-slamParams.disparity/8;
-			trier.t.dy+=rand()%slamParams.disparity/4-slamParams.disparity/8;
-			trier.t.dth+=(rand()%slamParams.disparity-slamParams.disparity/2.0)/90.0;
+		tempFitness/= (14.0*scanSelections.size());
+		trier.fitness= tempFitness;
+		if(trier.fitness > bestFitness){
+			bestFitness= trier.fitness;
+			bestTransformation= trier.t;
+			trier.t.dx+= rand()%slamParams.disparity/4-slamParams.disparity/8;
+			trier.t.dy+= rand()%slamParams.disparity/4-slamParams.disparity/8;
 		}
 		else{
 			trier.t.dx=rand()%slamParams.disparity/2-slamParams.disparity/4;
 			trier.t.dy=rand()%slamParams.disparity/2-slamParams.disparity/4;
-			trier.t.dth=(rand()%slamParams.disparity-slamParams.disparity/2.0)/45.0;
 		}
-		if(counter>slamParams.max_hill_climbing_iterations) break;
+		if(counter > slamParams.max_hill_climbing_iterations) break;
 		counter++;
 	}
 }
@@ -570,9 +591,8 @@ void CrsmSlam::updateMapProbabilities(void){
 @brief Starts the laser subscriber, listening to laser_subscriber_topic from parameters
 @return void
 **/
-void CrsmSlam::startLaserSubscriber(){
-	
-	clientLaserValues = n.subscribe( slamParams.laser_subscriber_topic.c_str() , 1 , &CrsmSlam::fixNewScans , this );
+void CrsmSlam::startLaserSubscriber(){	
+	_clientLaserValues = n.subscribe( slamParams.laser_subscriber_topic.c_str() , 1 , &CrsmSlam::fixNewScans , this );
 }
 
 /**
@@ -580,7 +600,21 @@ void CrsmSlam::startLaserSubscriber(){
 @return void
 **/
 void CrsmSlam::stopLaserSubscriber(){
-	clientLaserValues.shutdown();
+	_clientLaserValues.shutdown();
+}
+
+/**
+@brief Starts IMU subscriber. Listens -> IMU_subscriber_topic from params
+**/
+void CrsmSlam::startIMUSubscriber(){
+	_imuSubscriber = n.subscribe( slamParams.IMU_subscriber_topic, 1 , &CrsmSlam::serveImuMessage , this );
+}
+
+/**
+@brief Stops the IMU subscriber
+**/
+void CrsmSlam::stopIMUSubscriber(){
+	_imuSubscriber.shutdown();
 }
 
 /**
