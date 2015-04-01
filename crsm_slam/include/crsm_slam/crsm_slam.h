@@ -156,6 +156,9 @@ namespace crsm_slam{
 			**/
 			void stopLaserSubscriber(void);
 
+			void startIMUSubscriber();
+			void stopIMUSubscriber();
+
 			/**
 			@brief Starts the OccupancyGrid publisher, posting to occupancy_grid_publish_topic from parameters
 			@return void

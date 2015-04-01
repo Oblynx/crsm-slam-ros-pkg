@@ -111,8 +111,9 @@ void CrsmSlam::serveImuMessage(const sensor_msgs::ImuConstPtr& msg){
           msg->orientation.y,
           msg->orientation.z,
           msg->orientation.w));
-  double uselessRoll, uselessPitch;
-  matrix.getRPY(uselessRoll, uselessPitch, robotPose.theta);
+  double uselessRoll, uselessPitch, yaw;
+  matrix.getRPY(uselessRoll, uselessPitch, yaw);
+  robotPose.theta= yaw;
 }
 
 /**
@@ -143,8 +144,7 @@ void CrsmSlam::findTransformation(void){
 		temp.dth= robotPose.theta;
 		trier.fitness= 0;
 		float tempFitness= 0;
-		//for(set<int>::iterator j=scanSelections.begin();j != scanSelections.end();j++){
-		for(const auto& j : scanSelections){
+		for(set<int>::iterator j=scanSelections.begin();j != scanSelections.end();j++){
 			tempx= laser.scan.p[*j].x;
 			tempy= laser.scan.p[*j].y; 
 			sinth= sin(temp.dth);
